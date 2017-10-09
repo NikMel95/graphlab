@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Kren&Vaulina WebGL</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<link rel=stylesheet href="css/base.css"/>
+</head>
+<body>
+
+<script src="js/Three.js"></script>
+<script src="js/Detector.js"></script>
+<script src="js/Stats.js"></script>
+<script src="js/OrbitControls.js"></script>
+<script src="js/THREEx.KeyboardState.js"></script>
+<script src="js/THREEx.FullScreen.js"></script>
+<script src="js/THREEx.WindowResize.js"></script>
+
+<!-- jQuery code to display an information button and box when clicked. -->
+<script src="js/jquery-1.9.1.js"></script>
+<script src="js/jquery-ui.js"></script>
+<link rel=stylesheet href="css/jquery-ui.css" />
+<link rel=stylesheet href="css/info.css"/>
+<div id="ThreeJS" style="position: absolute; left:0px; top:0px"></div>
+<script>
+
+// MAIN
+
+// standard global variables
+var container, scene, camera, renderer, controls, stats;
+var keyboard = new THREEx.KeyboardState();
+var clock = new THREE.Clock();
+
+// custom global variables
+var mirrorSphere, mirrorSphereCamera; // for mirror material
+var mirrorSphere1, mirrorSphereCamera1; // for mirror material
+
+init();
+animate();
+
+// FUNCTIONS 		
+function init() 
+{
+	// SCENE
+	scene = new THREE.Scene();
+	
+	// CAMERA
+	var SCREEN_WIDTH = window.innerWidth, SCREEN_HEIGHT = window.innerHeight;
+	var VIEW_ANGLE = 45, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.1, FAR = 20000;
+	camera = new THREE.PerspectiveCamera( VIEW_ANGLE, ASPECT, NEAR, FAR);
+	scene.add(camera);
+	camera.position.set(-300,500,800);
+	camera.rotation.x = Math.PI / 3;
+	camera.lookAt(scene.position);	
+	
+	// RENDERER
+	if ( Detector.webgl )
+		renderer = new THREE.WebGLRenderer( {antialias:true} );
+	else
+		renderer = new THREE.CanvasRenderer(); 
+	renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+	container = document.getElementById( 'ThreeJS' );
+	container.appendChild( renderer.domElement );
+	
+	// EVENTS
+	THREEx.WindowResize(renderer, camera);
+	THREEx.FullScreen.bindKey({ charCode : 'm'.charCodeAt(0) });
+	
+	// CONTROLS
+	controls = new THREE.OrbitControls( camera, renderer.domElement );
+	
+	// STATS
+	stats = new Stats();
+	stats.domElement.style.position = 'absolute';
+	stats.domElement.style.bottom = '0px';
+	stats.domElement.style.zIndex = 100;
+	container.appendChild( stats.domElement );
+	
+	// LIGHT
+	var light = new THREE.PointLight(0xffffff);
+	light.position.set(0,700,-500);
+	scene.add(light);
+	var light1 = new THREE.PointLight(0xffffff);
+	light1.position.set(0,1000,300);
+	light1.castShadow = true;
+	scene.add(light1);
+	
+	// FLOOR
+	var floorGeometry = new THREE.PlaneGeometry(1000,1000);
+	var floorMaterial = new THREE.MeshBasicMaterial({color: 0xbfb0ff, side: THREE.DoubleSide});
+	var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+	//floor.position.y = -0.5;
+	floor.rotation.x = Math.PI / 2;
+	floor.position.set(0,-20,0);
+	floor.receiveShadow = true;
+	scene.add(floor);
+	
+	// SKYBOX/FOG
+	var materialArray = [];
+	materialArray.push(new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'images/px.png' ) }));
+	materialArray.push(new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'images/nx.png' ) }));
+	materialArray.push(new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'images/py.png' ) }));
+	materialArray.push(new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'images/ny.png' ) }));
+	materialArray.push(new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'images/pz.png' ) }));
+	materialArray.push(new THREE.MeshBasicMaterial( { map: THREE.ImageUtils.loadTexture( 'images/nz.png' ) }));
+	for (var i = 0; i < 6; i++)
+	   materialArray[i].side = THREE.BackSide;
+	var skyboxMaterial = new THREE.MeshFaceMaterial( materialArray );
+	var skyboxGeom = new THREE.CubeGeometry( 2000, 2000, 2000 );
+	var skybox = new THREE.Mesh( skyboxGeom, skyboxMaterial );
+	scene.add( skybox );	
+
+	////////////
+	// CUSTOM //
+	////////////
+	
+	var sphereGeom =  new THREE.SphereGeometry( 50, 32, 16 ); // radius, segmentsWidth, segmentsHeight
+	
+	mirrorSphereCamera = new THREE.CubeCamera( 0.1, 5000, 512 );
+	mirrorSphereCamera.renderTarget.minFilter = THREE.LinearMipMapLinearFilter;
+	scene.add( mirrorSphereCamera );
+	
+	texture = new THREE.ImageUtils.loadTexture( '../images/redball.png' );
+	var mirrorSphereMaterial = new THREE.MeshBasicMaterial( { envMap: mirrorSphereCamera.renderTarget, map: texture } );
+	mirrorSphere = new THREE.Mesh( sphereGeom, mirrorSphereMaterial );
+	mirrorSphere.position.set(-50,30,-100);
+	mirrorSphereCamera.position = mirrorSphere.position;
+	//scene.add(mirrorSphere);
+
+	mirrorSphereCamera1 = new THREE.CubeCamera( 0.1, 5000, 512 );
+	mirrorSphereCamera1.renderTarget.minFilter = THREE.LinearMipMapLinearFilter;
+	//scene.add( mirrorSphereCamera1 );
+	
+	texture = new THREE.ImageUtils.loadTexture( 'images/grayball.png' );
+	var mirrorSphereMaterial = new THREE.MeshBasicMaterial( { envMap: mirrorSphereCamera1.renderTarget, map: texture } );
+	mirrorSphere1 = new THREE.Mesh( sphereGeom, mirrorSphereMaterial );
+	mirrorSphere1.position.set(-150,30,-100);
+	mirrorSphereCamera1.position = mirrorSphere1.position;
+	//scene.add(mirrorSphere1);
+
+	var turn_angle_x = -Math.PI / 4;
+	var turn_angle_y = Math.PI;
+	
+	var geometry,  material;
+	geometry = new THREE.SphereGeometry( 70, 84, 50  );
+	texture = new THREE.ImageUtils.loadTexture( '../images/13ball.png' );
+	material = new THREE.MeshLambertMaterial( { map: texture } );
+	var ball1 = new THREE.Mesh( geometry, material );
+	ball1.metallic = true;
+	ball1.position.set(0,50,400);
+	ball1.rotation.y = turn_angle_y;
+	ball1.rotation.x = turn_angle_x;
+	ball1.castShadow = true;
+	ball1.receiveShadow = true;
+	scene.add(ball1);
+  	
+	geometry = new THREE.SphereGeometry( 70, 84, 50   );
+	texture = new THREE.ImageUtils.loadTexture( '../images/13ball.png' );
+	material = new THREE.MeshLambertMaterial( { map: texture } );
+	var ball1 = new THREE.Mesh( geometry, material );
+	ball1.metallic = true;
+	ball1.position.set(-400,50,0);
+	ball1.rotation.y = turn_angle_y;
+	ball1.rotation.x = turn_angle_x;
+	ball1.castShadow = true;
+	ball1.receiveShadow = true;
+	scene.add(ball1);
+	
+	geometry = new THREE.SphereGeometry( 70, 84, 50   );
+	texture = new THREE.ImageUtils.loadTexture( '../images/13ball.png' );
+	material = new THREE.MeshLambertMaterial( { map: texture } );
+	var ball1 = new THREE.Mesh( geometry, material );
+	ball1.metallic = true;
+	ball1.position.set(400,50,0);
+	ball1.rotation.y = turn_angle_y;
+	ball1.rotation.x = turn_angle_x;
+	ball1.castShadow = true;
+	ball1.receiveShadow = true;
+	scene.add(ball1);
+	
+	geometry = new THREE.SphereGeometry( 70, 84, 50  );
+	texture = new THREE.ImageUtils.loadTexture( '../images/13ball.png' );
+	material = new THREE.MeshLambertMaterial( { map: texture } );
+	var ball1 = new THREE.Mesh( geometry, material );
+	ball1.metallic = true;
+	ball1.position.set(0,50,-400);
+	ball1.rotation.y = turn_angle_y;
+	ball1.rotation.x = turn_angle_x;
+	ball1.castShadow = true;
+	ball1.receiveShadow = true;
+	scene.add(ball1);
+	
+
+	var geometry = new THREE.CubeGeometry(40, 240, 240); // Create a 20 by 20 by 20 cube.
+    var material = new THREE.MeshBasicMaterial({ color: 0x000120 }); // Skin the cube with 100% blue.
+    var cube = new THREE.Mesh(geometry, material); // Create a mesh based on the specified geometry (cube) and material (blue skin).
+    cube.position.set(120,105,0);
+	scene.add(cube); 
+	
+	var geometry = new THREE.CubeGeometry(40, 240, 240); // Create a 20 by 20 by 20 cube.
+    var material = new THREE.MeshBasicMaterial({ color: 0x00b6c0 }); // Skin the cube with 100% blue.
+    var cube = new THREE.Mesh(geometry, material); // Create a mesh based on the specified geometry (cube) and material (blue skin).
+    cube.position.set(80,105,0);
+	scene.add(cube); 
+	
+	var geometry = new THREE.CubeGeometry(40, 240, 240); // Create a 20 by 20 by 20 cube.
+    var material = new THREE.MeshBasicMaterial({ color: 0x88abff }); // Skin the cube with 100% blue.
+    var cube = new THREE.Mesh(geometry, material); // Create a mesh based on the specified geometry (cube) and material (blue skin).
+    cube.position.set(40,105,0);
+	scene.add(cube); 
+	
+	var geometry = new THREE.CubeGeometry(40, 240, 240); // Create a 20 by 20 by 20 cube.
+    var material = new THREE.MeshBasicMaterial({ color: 0x88abff }); // Skin the cube with 100% blue.
+    var cube = new THREE.Mesh(geometry, material); // Create a mesh based on the specified geometry (cube) and material (blue skin).
+    cube.position.set(0,105,0);
+	scene.add(cube); 
+	
+	var geometry = new THREE.CubeGeometry(40, 240, 240); // Create a 20 by 20 by 20 cube.
+    var material = new THREE.MeshBasicMaterial({ color: 0x00b6c0 }); // Skin the cube with 100% blue.
+    var cube = new THREE.Mesh(geometry, material); // Create a mesh based on the specified geometry (cube) and material (blue skin).
+    cube.position.set(-40,105,0);
+	scene.add(cube); 
+	
+	var geometry = new THREE.CubeGeometry(40, 240, 240); // Create a 20 by 20 by 20 cube.
+    var material = new THREE.MeshBasicMaterial({ color: 0x000120 }); // Skin the cube with 100% blue.
+    var cube = new THREE.Mesh(geometry, material); // Create a mesh based on the specified geometry (cube) and material (blue skin).
+    cube.position.set(-80,105,0);
+	scene.add(cube); 
+}
+
+function animate() 
+{
+    requestAnimationFrame( animate );
+	render();		
+	update();
+}
+
+function update()
+{
+	if ( keyboard.pressed("z") ) 
+	{ 
+		// do something
+	}
+	
+	controls.update();
+	stats.update();
+}
+
+function render() 
+{
+	// move the CubeCamera to the position of the object
+	//    that has a reflective surface, "take a picture" in each direction
+	//    and apply it to the surface.
+	// need to hide surface before and after so that it does not
+	//    "get in the way" of the camera
+	mirrorSphere.visible = false;
+	mirrorSphereCamera.updateCubeMap( renderer, scene );
+	mirrorSphere.visible = true;
+
+	mirrorSphere1.visible = false;
+	mirrorSphereCamera1.updateCubeMap( renderer, scene );
+	mirrorSphere1.visible = true;
+
+	renderer.shadowMapEnabled = true;	
+	renderer.render( scene, camera );
+}
+
+</script>
+
+</body>
+</html>
